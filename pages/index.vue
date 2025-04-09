@@ -106,7 +106,7 @@ export default {
     //获取所有内容
     getContent(contentVo) {
       this.loading = true;
-      touristApi
+      /*touristApi
         .getContent(contentVo)
         .then((response) => {
           this.contentObj = response.rows;
@@ -114,7 +114,28 @@ export default {
           this.loveContentIds = response.loveContentIds;
           this.loading = false;
         })
-        .catch((response) => {});
+        .catch((response) => {});*/
+
+      touristApi.getContent(contentVo)
+          .then((response) => {
+            if (response.rows && Array.isArray(response.rows)) {
+              this.contentObj = response.rows || [];
+              this.total = parseInt(response.total || '0');
+              this.loveContentIds = response.loveContentIds || [];
+            } else {
+              // 空数据时的安全处理
+              this.contentObj = [];
+              this.total = 0;
+              this.loveContentIds = [];
+            }
+            this.loading = false;
+          })
+          .catch((error) => {
+            console.error(error);
+            this.loading = false;
+          });
+
+
     },
     //当页数改变的时候
     handleCurrentChange(val) {

@@ -62,7 +62,7 @@
                     round
                     style="margin-top: 15px"
                     :disabled="contentParam.content.length <= 0"
-                    @click="publishContent"
+                    @click="publishContent()"
                 >
                   发布
                 </el-button>
@@ -96,7 +96,7 @@
 </template>
 
 <script>
-// 引入接口定义的js文件
+//引入接口定义的js文件
 import operateApi from "@/api/operate";
 import userInfoApi from "@/api/userInfo";
 import touristApi from "@/api/tourist";
@@ -105,14 +105,14 @@ import { getToken } from "@/utils/auth";
 export default {
   data() {
     return {
-      // 分类
+      //分类
       props: {
         expandTrigger: "hover",
         value: "categoryId",
         label: "categoryName",
         children: "children",
       },
-      // 请求参数
+      //请求参数
       contentParam: {
         categoryId: "",
         type: 0,
@@ -120,12 +120,12 @@ export default {
         content: "",
         fileList: [],
       },
-      // 禁用
+      //禁用
       disabled: {
         picture: false,
         video: false,
       },
-      // 上传参数
+      //上传参数
       upload: {
         show: false,
         action: "",
@@ -134,14 +134,14 @@ export default {
         listType: "",
         headers: {},
       },
-      // 选择的分类
+      //选择的分类
       cascader: [],
       fileCount: 0,
       fileList: [],
-      // 分类列表
+      //分类列表
       categoryOptions: [],
       dialog: true,
-      // 1图片, 2视频
+      //1图片,2视频
       selectType: 0,
     };
   },
@@ -154,22 +154,56 @@ export default {
   },
   mounted() {
     this.$nextTick(function () {
-      // 确保getTreeselect在mounted之后调用
+      //元素加载完成后执行的代码
       this.getTreeselect();
+      //this.$refs.searchAddress.$el.click()
     });
   },
 
   methods: {
-    // 检查内容是否有不文明的语言
-    containsBadLanguage(content) {
-      const badWords = ['下三烂', '下贱', '仆街','你她马的','你它马的','你他马的','他奶奶的',
-        '你是鸡','你是鸭','你马的','奸你','她妈的','她马的','妈B','妈比','妈逼','懆您妈','操逼',
-        '日你','仆街','傻逼','脑残','赛你老母','操比','操您妈','你娘咧','灨你娘','操机掰','你老母'];  // 不文明词汇
-      const regex = new RegExp(badWords.join('|'), 'i');
-      return regex.test(content);
+    //初始化数据
+    haveMail() {
+      userInfoApi
+          .haveMail()
+          .then((response) => {})
+          .catch((response) => {
+            var count = 3; //赋值多少秒
+            var times = setInterval(() => {
+              count--; //递减
+              if (count <= 0) {
+                clearInterval(times);
+                this.$router.push({ path: "/user/profile" });
+              } else {
+                this.$message.warning(
+                    "将再 " + count + " 秒后跳转到绑定邮箱页面"
+                );
+              }
+            }, 1000); //1000毫秒后执行
+          });
     },
-
-    // 获取分类列表
+    //选择图片
+    selectPicture() {
+      //   this.$refs.uploadBtn.$el.click();
+      //   this.$refs.uploadBtn.dispatchEvent(new MouseEvent('click'));
+      this.upload.action = this.handleCampusUrl("/campus/imageUpload");
+      this.upload.limit = 3;
+      this.upload.accept = "image/*";
+      this.upload.listType = "picture-card";
+      this.selectType = 1;
+      document.getElementById("uploadBtn").click();
+    },
+    selectVideo() {
+      console.log("选择视频");
+      //   this.$refs.uploadBtn.$el.click();
+      //   this.$refs.uploadBtn.dispatchEvent(new MouseEvent('click'));
+      this.upload.action = this.handleCampusUrl("/campus/videoUpload");
+      this.upload.limit = 1;
+      this.upload.accept = "video/*";
+      this.upload.listType = "text";
+      this.selectType = 2;
+      document.getElementById("uploadBtn").click();
+    },
+    /** 查询下拉树结构 */
     getTreeselect() {
       touristApi.getCategoryList().then((response) => {
         let lists = response.data;
@@ -182,14 +216,90 @@ export default {
         this.categoryOptions = this.handleTree(lists, "categoryId");
       });
     },
-
-    // 发布内容
-    publishContent() {
-      if (this.containsBadLanguage(this.contentParam.content)) {
-        this.$message.error('请修改您的内容，避免使用不文明语言。');
-        return;
+    //文件移除
+    handleRemove(file, fileList) {
+      console.log(file, fileList);
+      this.checkBtn();
+    },
+    //点击文件列表中已上传的文件时的钩子
+    handlePreview(file) {
+      console.log(file);
+    },
+    //上传成功
+    handleSuccess(response, file, fileList) {
+      if (response.code != 200) {
+        fileList.splice(fileList.length - 1, 1);
+        this.$message.warning(response.msg);
+        setTimeout(() => {
+          this.$message.error("上传失败，请重新上传");
+        }, 1000);
       }
+      this.checkBtn();
+    },
+    handleError(err, file, fileList) {
+      this.$message.error("上传失败");
+      this.checkBtn();
+    },
+    //文件改变
+    handleChange(file, fileList) {
+      console.log(file);
+      this.fileList = fileList;
+      let fileNum = fileList.length;
+      //添加文件
+      if (this.fileCount < fileNum) {
+        if (file.raw.type.startsWith("image")) {
+          this.disabled.video = true;
+        } else {
+          this.disabled.picture = true;
+        }
+        this.validated(file);
+        //上传文件
+        this.$refs.upload.submit();
+      }
+      this.fileCount = fileNum;
 
+      if (fileNum > 0) {
+        this.upload.show = true;
+      }
+      this.checkBtn();
+    },
+    handleExceed(files, fileList) {
+      this.$message.warning(`上传数量超过限制`);
+    },
+    //验证文件类型
+    validated(file) {
+      // 若不符合类型，则让当前上传的文件去除掉即可，即从上传对列删除本次上传
+      const size = file.size / 1024 / 1024;
+      if (this.selectType == 1) {
+        if (!file.raw.type.startsWith("image")) {
+          this.$message.warning(`请选择图片`);
+          this.fileList.splice(this.fileList.length - 1, 1);
+        }
+
+        if (size > 5) {
+          this.fileList.splice(this.fileList.length - 1, 1);
+          this.$message.warning("上传的图片大小不能超过 5MB!");
+        }
+      } else {
+        if (!file.raw.type.startsWith("video")) {
+          this.$message.warning(`请选择视频`);
+          this.fileList.splice(this.fileList.length - 1, 1);
+        }
+        if (size > 20) {
+          this.fileList.splice(this.fileList.length - 1, 1);
+          this.$message.warning("上传的视频大小不能超过 20MB!");
+        }
+      }
+    },
+    checkBtn() {
+      if (this.fileList.length == 0) {
+        this.upload.show = false;
+        this.disabled.picture = false;
+        this.disabled.video = false;
+      }
+    },
+    //发布
+    publishContent() {
       this.contentParam.fileList = [];
       console.log(this.fileList);
       for (let file of this.fileList) {
@@ -211,62 +321,20 @@ export default {
       } else {
         this.contentParam.categoryId = this.cascader[1];
       }
-
-      // 请求
+      //请求
       operateApi.publishContent(this.contentParam).then((response) => {
         this.$message.success("发表成功，请等待管理的审核");
         this.$router.push({ path: "/User/management?types=1" });
       });
     },
-
-    // 选择图片
-    selectPicture() {
-      this.upload.action = this.handleCampusUrl("/campus/imageUpload");
-      this.upload.limit = 3;
-      this.upload.accept = "image/*";
-      this.upload.listType = "picture-card";
-      this.selectType = 1;
-      document.getElementById("uploadBtn").click();
-    },
-    // 选择视频
-    selectVideo() {
-      console.log("选择视频");
-      this.upload.action = this.handleCampusUrl("/campus/videoUpload");
-      this.upload.limit = 1;
-      this.upload.accept = "video/*";
-      this.upload.listType = "text";
-      this.selectType = 2;
-      document.getElementById("uploadBtn").click();
-    },
-
-    // 检查邮箱
-    haveMail() {
-      userInfoApi
-          .haveMail()
-          .then((response) => {})
-          .catch((response) => {
-            var count = 3; //赋值多少秒
-            var times = setInterval(() => {
-              count--; //递减
-              if (count <= 0) {
-                clearInterval(times);
-                this.$router.push({ path: "/user/profile" });
-              } else {
-                this.$message.warning(
-                    "将再 " + count + " 秒后跳转到绑定邮箱页面"
-                );
-              }
-            }, 1000); //1000毫秒后执行
-          });
-    },
   },
 };
 </script>
-
 <style scoped>
 .iconbed-text {
   margin: 0 8px 0 2px;
   font-size: 13px;
+  /* color: rgb(131, 131, 131); */
 }
 .c-cascader {
   border-radius: 0;

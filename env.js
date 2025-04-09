@@ -5,6 +5,6 @@ module.exports = {
     },
     prod: {
         DESCN:'线上环境',
-	    API_BASE_URL:'http://go.free.idcfengye.com',
+	    API_BASE_URL:'http://localhost:8160',
     }
 }
